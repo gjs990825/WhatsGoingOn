@@ -1,0 +1,4 @@
+*.pickle
+*.pth
+*.pt
+/.idea
