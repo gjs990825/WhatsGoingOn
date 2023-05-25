@@ -1,14 +1,11 @@
-import abc
 import logging
 import os
-import pickle
-import random
 import sys
 import tempfile
 import time
-from abc import ABC
 
 import cv2
+import numpy as np
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import Qt, QTimerEvent, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
@@ -31,19 +28,6 @@ class Worker(QObject):
     def run(self):
         self.work()
         self.finished.emit()
-
-
-class WGOInterface(ABC):
-    @abc.abstractmethod
-    def wgo(self, clip) -> dict[str, float]:
-        pass
-
-
-class PickleWGO(WGOInterface):
-    def wgo(self, clip) -> dict[str, float]:
-        with open('test.pickle', 'wb') as f:
-            pickle.dump(clip, f)
-        return {f'Item {i}': random.random() for i in range(10)}
 
 
 class Help(QtWidgets.QDialog, Ui_info):
@@ -176,15 +160,13 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
                 self.video_stop(message)
 
     def ui_image_process(self, source, target):
-        q_image = QtGui.QImage(source.data,
-                               source.shape[1],
-                               source.shape[0],
-                               QtGui.QImage.Format.Format_RGB888)
-        pixmap = QtGui.QPixmap.fromImage(q_image)
-        scaled = pixmap.scaled(target.size(),
-                               Qt.AspectRatioMode.KeepAspectRatio,
-                               self.transformation_mode)
-        target.setPixmap(scaled)
+        h, w, ch = source.shape
+        bytes_per_line = ch * w
+        q_image = QtGui.QImage(source.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
+        scaled = q_image.scaled(target.size(),
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                self.transformation_mode)
+        target.setPixmap(QtGui.QPixmap.fromImage(scaled))
 
     def prepare_video_clip(self):
         if self.video_file_name is None:
@@ -201,11 +183,11 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         start, end = self.startSlider.value(), self.endSlider.value()
         data = video_frame_extract(16, self.video_file_name, start, end)
 
-        result_dict = self.wgo.wgo(data)
+        result = self.wgo.wgo(data)
 
         model = QStandardItemModel()
-        for k, v in result_dict.items():
-            model.appendRow(QStandardItem(f'{k}: {v * 100 :04.1f}'))
+        for label, score in sorted(result, key=lambda x: x[1], reverse=True):
+            model.appendRow(QStandardItem(f'{label}: {score * 100 :04.1f}'))
 
         self.resultDisplay.setModel(model)
         self.resultDisplay.update()
