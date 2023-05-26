@@ -12,6 +12,7 @@ from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from video_processing import video_frame_extract
+from wgo_d3d import WGOD3D
 from wgo_info import Ui_info
 from wgo_main import Ui_mainWindow
 
@@ -41,6 +42,9 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
     WGO (What's Going On)
     """
     APP_NAME = 'WGO'
+
+    class CameraNotFoundError(Exception):
+        pass
 
     def __init__(self, *args, obj=None, **kwargs):
         super(WGO, self).__init__(*args, **kwargs)
@@ -152,7 +156,9 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
 
             if playback_end:
                 if self.video_file_name:
-                    self.load_video(self.video_file_name)
+                    # here we go again
+                    # this is slow, but I don't care :/
+                    self.load_video(self.video_file_name, set_end_slider=False)
             else:
                 message = 'Frame read failed, file might be corrupted'
                 logging.warning(message)
@@ -187,7 +193,7 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
 
         model = QStandardItemModel()
         for label, score in sorted(result, key=lambda x: x[1], reverse=True):
-            model.appendRow(QStandardItem(f'{label}: {score * 100 :04.1f}'))
+            model.appendRow(QStandardItem(f'{score * 100 :04.1f}% {label}'))
 
         self.resultDisplay.setModel(model)
         self.resultDisplay.update()
@@ -229,6 +235,7 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def frame_seeking_and_jumping(self):
         if self.frame_seeking_flag:
+            # deprecated condition
             if self.frame_position >= self.frame_seeking_position:
                 logging.warning(f'Can not seek backwards')
                 self.frame_position += 1
@@ -281,6 +288,9 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.total_frame_number = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
         logging.info(f'Video frame count: {self.total_frame_number}')
 
+        if self.total_frame_number == 0:
+            raise WGO.CameraNotFoundError('Seems no camera installed')
+
         self.video_fps = self.capture.get(cv2.CAP_PROP_FPS)
         if self.video_fps > 60:
             logging.error(f'Abnormal fps: {self.video_fps}, reset to default fps')
@@ -301,7 +311,7 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         logging.info(f'Video file: {file_name}')
         self.load_video(file_name)
 
-    def load_video(self, file_name):
+    def load_video(self, file_name, set_end_slider=True):
         self.video_file_name = file_name
         self.video_stop()
         self.capture = cv2.VideoCapture(file_name)
@@ -321,6 +331,8 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.frame_position = 0
         self.sliders_reset_range()
         self.setWindowTitle(file_name)
+        if set_end_slider:
+            self.endSlider.setValue(self.last_frame())
         self.video_resume()
 
     def video_all(self):
@@ -372,7 +384,12 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def camera_mode_switch(self, x):
         if x:
-            self.open_camera()
+            try:
+                self.open_camera()
+            except WGO.CameraNotFoundError as e:
+                logging.error(e)
+                self.prompt(str(e))
+                self.cameraModeRadioButton.setChecked(False)
         else:
             self.video_stop()
             self.stop_recording()

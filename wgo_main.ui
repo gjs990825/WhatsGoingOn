@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>900</width>
+    <width>800</width>
     <height>600</height>
    </rect>
   </property>
@@ -75,11 +75,20 @@ Ctrl+C to open default camera device.</string>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>150</width>
+           <height>0</height>
+          </size>
+         </property>
          <property name="maximumSize">
           <size>
            <width>16777215</width>
            <height>16777215</height>
           </size>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QAbstractScrollArea::AdjustToContents</enum>
          </property>
         </widget>
        </item>
@@ -114,44 +123,6 @@ Ctrl+C to open default camera device.</string>
        <property name="bottomMargin">
         <number>0</number>
        </property>
-       <item row="0" column="3" rowspan="3">
-        <widget class="QToolButton" name="goButton">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>0</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>GO!!</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QToolButton" name="endButton">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>90</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>End Here</string>
-         </property>
-        </widget>
-       </item>
        <item row="1" column="1">
         <widget class="QToolButton" name="startButton">
          <property name="sizePolicy">
@@ -168,23 +139,6 @@ Ctrl+C to open default camera device.</string>
          </property>
          <property name="text">
           <string>Start Here</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QSlider" name="playbackSlider">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QSlider" name="startSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
          </property>
         </widget>
        </item>
@@ -208,6 +162,13 @@ Ctrl+C to open default camera device.</string>
          </property>
         </widget>
        </item>
+       <item row="1" column="0">
+        <widget class="QSlider" name="startSlider">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
        <item row="0" column="1" colspan="2">
         <widget class="QLabel" name="playbackInfo">
          <property name="minimumSize">
@@ -221,6 +182,54 @@ Ctrl+C to open default camera device.</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QToolButton" name="endButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>90</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>End Here</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QSlider" name="playbackSlider">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="4" rowspan="3">
+        <widget class="QToolButton" name="goButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>GO!!</string>
          </property>
         </widget>
        </item>
@@ -302,7 +311,7 @@ Ctrl+C to open default camera device.</string>
              <bool>true</bool>
             </property>
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -344,7 +353,7 @@ Ctrl+C to open default camera device.</string>
              <bool>true</bool>
             </property>
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+             <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -372,6 +381,29 @@ Ctrl+C to open default camera device.</string>
          </layout>
         </widget>
        </item>
+       <item>
+        <widget class="Line" name="line_7">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="realTimeCheckBox">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="layoutDirection">
+          <enum>Qt::LeftToRight</enum>
+         </property>
+         <property name="text">
+          <string>Realtime</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
     </item>
@@ -389,7 +421,7 @@ Ctrl+C to open default camera device.</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>900</width>
+     <width>800</width>
      <height>22</height>
     </rect>
    </property>
@@ -456,12 +488,12 @@ Ctrl+C to open default camera device.</string>
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>81</x>
-     <y>517</y>
+     <x>100</x>
+     <y>560</y>
     </hint>
     <hint type="destinationlabel">
-     <x>290</x>
-     <y>519</y>
+     <x>476</x>
+     <y>560</y>
     </hint>
    </hints>
   </connection>
@@ -472,8 +504,8 @@ Ctrl+C to open default camera device.</string>
    <slot>setDisabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>36</x>
-     <y>513</y>
+     <x>55</x>
+     <y>560</y>
     </hint>
     <hint type="destinationlabel">
      <x>162</x>
@@ -494,6 +526,22 @@ Ctrl+C to open default camera device.</string>
     <hint type="destinationlabel">
      <x>449</x>
      <y>299</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>realTimeCheckBox</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>goButton</receiver>
+   <slot>setDisabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>825</x>
+     <y>545</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>860</x>
+     <y>487</y>
     </hint>
    </hints>
   </connection>
