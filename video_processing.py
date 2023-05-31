@@ -1,38 +1,41 @@
 import cv2
-import numpy as np
 
 
-def video_frame_extract(n, video_path, start=0, end=-1):
-    capture = cv2.VideoCapture(video_path)
-    all_frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+def get_offsets(all_frames, extract_frames, start=0, end=-1):
     if end == -1:
-        end = all_frame_count - 1
-    assert 0 <= start <= end < all_frame_count
+        end = all_frames - 1
+    if not 0 <= start <= end < all_frames:
+        return []
 
     frame_count = end - start + 1
-    assert n <= frame_count
+    if not extract_frames <= frame_count:
+        return []
 
-    average_length = int(frame_count / n)
+    avg_len = frame_count / extract_frames
 
-    offsets = [int(start + average_length / 2 + i * average_length) for i in range(n - 1, -1, -1)]
+    return [int(start + (i + 0.5) * avg_len) for i in range(extract_frames)]
+
+
+def video_frame_extract(extract_frames, video_path, start=0, end=-1):
+    capture = cv2.VideoCapture(video_path)
+    all_frames = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+
+    offsets = get_offsets(all_frames, extract_frames, start, end)
+    assert len(offsets) > 0
 
     capture.set(cv2.CAP_PROP_POS_FRAMES, start)
-
-    index = start
     images = []
-    while offsets:
-        offset = offsets.pop()
-        while index < offset:
-            capture.grab()
-            # grab() does not process frame data, for performance improvement
+    index = start
+    for offset in offsets:
+        while index <= offset:
+            if not capture.grab():
+                raise RuntimeError('Video/Camera grabbing error')
             index += 1
-
-        success, img = capture.read()
+        success, img = capture.retrieve()
         index += 1
-
         if not success:
-            raise RuntimeError()
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        images.append(img)
+            raise RuntimeError('Video/Camera retrieving error')
 
-    return np.concatenate(images, axis=2)
+        images.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+    return images
