@@ -1,40 +1,66 @@
 import logging
 import os
+import random
 import sys
 import tempfile
 import time
 
 import cv2
-import numpy as np
 from PyQt6 import QtWidgets, QtGui
-from PyQt6.QtCore import Qt, QTimerEvent, QThread, QObject, pyqtSignal
+from PyQt6.QtCore import Qt, QTimerEvent, QObject, pyqtSignal, QThreadPool, QRunnable
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from video_processing import video_frame_extract
 from wgo_d3d import WGOD3D
 from wgo_info import Ui_info
+from wgo_interface import PickleWGO
 from wgo_main import Ui_mainWindow
 
 logging.basicConfig(level=logging.INFO)
 
 
-class Worker(QObject):
+class WorkerSignals(QObject):
     finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(int)
+
+
+class Worker(QRunnable):
 
     def __init__(self, work) -> None:
         super().__init__()
         self.work = work
+        self.signals = WorkerSignals()
 
     def run(self):
         self.work()
-        self.finished.emit()
+        self.signals.finished.emit()
 
 
 class Help(QtWidgets.QDialog, Ui_info):
     def __init__(self, *args, obj=None, **kwargs):
         super(Help, self).__init__(*args, **kwargs)
         self.setupUi(self)
+
+
+class RealtimeImageSequence:
+    def __init__(self, max_reserved_frames, extract_frames):
+        self.extract_frames = extract_frames
+        self.max_reserved_frames = max_reserved_frames
+        self.cache = []
+
+    def cache_frame(self, frame):
+        self.cache.append(frame)
+        if len(self.cache) > self.max_reserved_frames:
+            self.cache = self.cache[:self.max_reserved_frames]
+
+    def fetch_frames(self):
+        offsets = get_offsets(len(self.cache), self.extract_frames)
+        if len(offsets) < len(self.cache):
+            return None
+        return list(map(self.cache.__getitem__, offsets))
 
 
 class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
@@ -58,6 +84,9 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.video_file_name = None
         self.input_playback_fps = 0
         self.input_playback_last_t = 0
+        self.image_sequence = RealtimeImageSequence(75, 16)
+        self.realtime_mode = False
+        self.thread_pool = QThreadPool()
 
         self.camera_mode = False
         self.recorder = None
@@ -118,6 +147,13 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.camStart.toggled.connect(self.capture_switch)
         self.camAutoCapture.clicked.connect(self.capture_auto)
 
+        self.realTimeCheckBox.toggled.connect(self.realtime_mode_set)
+
+    def realtime_mode_set(self, x):
+        self.realtime_mode = x
+        if self.realtime_mode:
+            self.auto_detect()
+
     def start_set(self, position):
         self.start_position = position
         self.startSlider.setValue(position)
@@ -148,6 +184,9 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         success, img = self.capture.read()
         if success:
             self.current_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # if self.realtime_mode:
+            #     self.image_sequence.cache_frame(self.current_frame)
+
             self.ui_image_process(self.current_frame, self.imageDisplay)
             if self.recorder is not None:
                 self.recorder.write(img)
@@ -183,9 +222,9 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
             self.prompt('At least select 16 frames!')
             return
 
-        self.detect()
+        self.start_detection()
 
-    def dummy_detect(self):
+    def detect_current_config(self):
         start, end = self.startSlider.value(), self.endSlider.value()
         data = video_frame_extract(16, self.video_file_name, start, end)
 
@@ -198,22 +237,37 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.resultDisplay.setModel(model)
         self.resultDisplay.update()
 
-    def detect(self):
-        self.q_thread = QThread()
-        self.worker = Worker(self.dummy_detect)
-        self.worker.moveToThread(self.q_thread)
-        # Connect signals and slots
-        self.q_thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.q_thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.q_thread.finished.connect(self.q_thread.deleteLater)
+    def detect_cached(self):
+        time.sleep(1)
+        model = QStandardItemModel()
+        for i in range(10):
+            model.appendRow(QStandardItem(f'{random.random() * 100 :04.1f}% {i}'))
+        self.resultDisplay.setModel(model)
+        self.resultDisplay.update()
 
-        self.q_thread.start()
+    def foo(self):
+        print('foo')
+
+    def auto_detect(self):
+        print('auto detect')
+        if not self.realtime_mode:
+            return
+
+        worker = Worker(self.detect_cached)
+        worker.setAutoDelete(True)
+        worker.signals.finished.connect(self.auto_detect)
+
+        self.thread_pool.start(worker)
+
+    def start_detection(self):
+        worker = Worker(self.detect_current_config)
+        worker.setAutoDelete(True)
 
         self.goButton.setEnabled(False)
-        self.q_thread.finished.connect(
+        worker.signals.finished.connect(
             lambda: self.goButton.setEnabled(True)
         )
+        self.thread_pool.start(worker)
 
     def show_help(self):
         dialog = Help(self)
