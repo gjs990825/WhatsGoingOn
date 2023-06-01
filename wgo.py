@@ -1,17 +1,16 @@
 import logging
 import os
-import random
 import sys
 import tempfile
 import time
 
 import cv2
 from PyQt6 import QtWidgets, QtGui
-from PyQt6.QtCore import Qt, QTimerEvent, QObject, pyqtSignal, QThreadPool, QRunnable
+from PyQt6.QtCore import Qt, QTimerEvent, QObject, pyqtSignal, QThreadPool, QRunnable, QMutex, QSemaphore
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
-from video_processing import video_frame_extract
+from video_processing import video_frame_extract, get_offsets
 from wgo_d3d import WGOD3D
 from wgo_info import Ui_info
 from wgo_interface import PickleWGO
@@ -28,7 +27,6 @@ class WorkerSignals(QObject):
 
 
 class Worker(QRunnable):
-
     def __init__(self, work) -> None:
         super().__init__()
         self.work = work
@@ -49,18 +47,33 @@ class RealtimeImageSequence:
     def __init__(self, max_reserved_frames, extract_frames):
         self.extract_frames = extract_frames
         self.max_reserved_frames = max_reserved_frames
+        self.semaphore = QSemaphore()
+        self.mutex = QMutex()
         self.cache = []
 
+    def clear_frames(self):
+        self.mutex.lock()
+        self.cache.clear()
+        self.semaphore.acquire(self.semaphore.available())
+        self.mutex.unlock()
+
     def cache_frame(self, frame):
+        self.mutex.lock()
         self.cache.append(frame)
         if len(self.cache) > self.max_reserved_frames:
-            self.cache = self.cache[:self.max_reserved_frames]
+            self.cache = self.cache[-self.max_reserved_frames:]
+        self.semaphore.release(1)
+        self.mutex.unlock()
 
     def fetch_frames(self):
+        self.mutex.lock()
         offsets = get_offsets(len(self.cache), self.extract_frames)
-        if len(offsets) < len(self.cache):
-            return None
-        return list(map(self.cache.__getitem__, offsets))
+        frames = None
+        if 0 < len(offsets) < len(self.cache):
+            frames = list(map(self.cache.__getitem__, offsets))
+            self.semaphore.acquire(self.semaphore.available())
+        self.mutex.unlock()
+        return frames
 
 
 class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
@@ -184,8 +197,8 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         success, img = self.capture.read()
         if success:
             self.current_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # if self.realtime_mode:
-            #     self.image_sequence.cache_frame(self.current_frame)
+            if self.realtime_mode:
+                self.image_sequence.cache_frame(self.current_frame)
 
             self.ui_image_process(self.current_frame, self.imageDisplay)
             if self.recorder is not None:
@@ -218,39 +231,49 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
             self.prompt('No video loaded!')
             return
 
-        if self.end_position - self.start_position < 16:
-            self.prompt('At least select 16 frames!')
+        if self.end_position - self.start_position < self.frames_acquired:
+            self.prompt(f'At least select {self.frames_acquired} frames!')
             return
 
         self.start_detection()
 
-    def detect_current_config(self):
-        start, end = self.startSlider.value(), self.endSlider.value()
-        data = video_frame_extract(16, self.video_file_name, start, end)
-
-        result = self.wgo.wgo(data)
-
+    def update_results(self, results):
         model = QStandardItemModel()
-        for label, score in sorted(result, key=lambda x: x[1], reverse=True):
+        for label, score in sorted(results, key=lambda x: x[1], reverse=True):
+            if score < 0.001:
+                continue
+            if score > 0.999:
+                score = 0.999
             model.appendRow(QStandardItem(f'{score * 100 :04.1f}% {label}'))
 
         self.resultDisplay.setModel(model)
         self.resultDisplay.update()
 
-    def detect_cached(self):
-        time.sleep(1)
-        model = QStandardItemModel()
-        for i in range(10):
-            model.appendRow(QStandardItem(f'{random.random() * 100 :04.1f}% {i}'))
-        self.resultDisplay.setModel(model)
-        self.resultDisplay.update()
+    def detect_current_config(self):
+        start, end = self.startSlider.value(), self.endSlider.value()
+        frames = video_frame_extract(self.frames_acquired, self.video_file_name, start, end)
+        results = self.wgo.wgo(frames)
+        self.update_results(results)
 
-    def foo(self):
-        print('foo')
+    def detect_cached(self):
+        print(f'detect cached: {self.image_sequence.semaphore.available()}')
+        if not self.image_sequence.semaphore.tryAcquire(self.minimum_detection_interval, 1000):
+            print('semaphore acquire timeout')
+            return
+        frames = self.image_sequence.fetch_frames()
+        if frames is None:
+            logging.info(f'no frames fetched')
+            return
+
+        logging.info('detection go')
+        results = self.wgo.wgo(frames)
+        logging.info('detection end')
+        self.update_results(results)
 
     def auto_detect(self):
         print('auto detect')
         if not self.realtime_mode:
+            print('auto canceled')
             return
 
         worker = Worker(self.detect_cached)
@@ -432,6 +455,8 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.statusBar().showMessage(message)
         self.playbackSlider.setEnabled(False)
 
+        self.image_sequence.clear_frames()
+
         self.imageDisplay.setText('Ctrl+O to load a video.\nCtrl+C to open default camera device.')
 
         logging.info(message)
@@ -476,6 +501,8 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.video_stop()  # Stop all work
         self.stop_recording()
         self.temp_dir.cleanup()
+        self.realtime_mode_set(False)
+        self.thread_pool.waitForDone(2000)  # wait for other threads
         event.accept()
 
     def setWindowTitle(self, title: str = None):
