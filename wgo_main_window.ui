@@ -77,7 +77,7 @@ Ctrl+C to open default camera device.</string>
          </property>
          <property name="minimumSize">
           <size>
-           <width>150</width>
+           <width>200</width>
            <height>0</height>
           </size>
          </property>

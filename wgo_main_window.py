@@ -54,7 +54,7 @@ class Ui_mainWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.resultDisplay.sizePolicy().hasHeightForWidth())
         self.resultDisplay.setSizePolicy(sizePolicy)
-        self.resultDisplay.setMinimumSize(QtCore.QSize(150, 0))
+        self.resultDisplay.setMinimumSize(QtCore.QSize(200, 0))
         self.resultDisplay.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.resultDisplay.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.resultDisplay.setObjectName("resultDisplay")

@@ -13,8 +13,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from video_processing import video_frame_extract, get_offsets
 from wgo_d3d import WGOD3D
 from wgo_info import Ui_info
-from wgo_interface import PickleWGO
-from wgo_main import Ui_mainWindow
+from wgo_main_window import Ui_mainWindow
 
 logging.basicConfig(level=logging.INFO)
 
@@ -97,7 +96,10 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.video_file_name = None
         self.input_playback_fps = 0
         self.input_playback_last_t = 0
-        self.image_sequence = RealtimeImageSequence(75, 16)
+
+        self.frames_acquired = 16  # detection needed frames
+        self.minimum_detection_interval = 1  # least new frame(s) needed to begin next detection
+        self.image_sequence = RealtimeImageSequence(50, self.frames_acquired)
         self.realtime_mode = False
         self.thread_pool = QThreadPool()
 
@@ -240,8 +242,6 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
     def update_results(self, results):
         model = QStandardItemModel()
         for label, score in sorted(results, key=lambda x: x[1], reverse=True):
-            if score < 0.001:
-                continue
             if score > 0.999:
                 score = 0.999
             model.appendRow(QStandardItem(f'{score * 100 :04.1f}% {label}'))
@@ -256,9 +256,8 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.update_results(results)
 
     def detect_cached(self):
-        print(f'detect cached: {self.image_sequence.semaphore.available()}')
         if not self.image_sequence.semaphore.tryAcquire(self.minimum_detection_interval, 1000):
-            print('semaphore acquire timeout')
+            logging.info('semaphore acquire timeout')
             return
         frames = self.image_sequence.fetch_frames()
         if frames is None:
@@ -271,9 +270,8 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         self.update_results(results)
 
     def auto_detect(self):
-        print('auto detect')
         if not self.realtime_mode:
-            print('auto canceled')
+            logging.warning('auto canceled')
             return
 
         worker = Worker(self.detect_cached)
@@ -344,18 +342,18 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         try:
             size = self.get_output_size()
         except ValueError:
-            self.statusBar().showMessage('Nothing playing!')
+            self.statusbar.showMessage('Nothing playing!')
             return
         self.recording_path = os.path.join(self.temp_dir.name, f'{time.time()}.mp4')
         logging.info(f'Recording to {self.recording_path}')
         self.recorder = cv2.VideoWriter(self.recording_path, cv2.VideoWriter_fourcc(*'mp4v'), int(self.video_fps), size)
-        self.statusBar().showMessage('Recording...')
+        self.statusbar.showMessage('Recording...')
 
     def stop_recording(self):
         if self.recorder is not None:
             self.recorder.release()
             self.recorder = None
-            self.statusBar().showMessage('Stop recording.')
+            self.statusbar.showMessage('Stop recording.')
 
     def open_camera(self):
         self.video_stop()
@@ -427,14 +425,14 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
             self.killTimer(self.video_timer_id)
             self.video_timer_id = None
             message = 'Playback Paused'
-            self.statusBar().showMessage(message)
+            self.statusbar.showMessage(message)
             logging.info(message)
 
     def video_resume(self):
         if self.video_timer_id is None:
             self.video_timer_id = self.startTimer(self.timer_interval(), Qt.TimerType.CoarseTimer)
             message = 'Playback Resumed'
-            self.statusBar().showMessage(message)
+            self.statusbar.showMessage(message)
             self.playbackSlider.setEnabled(True)
             logging.info(message)
 
@@ -452,7 +450,7 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
         message = 'Playback Stopped' if message is None else message
         logging.info(message)
         self.camera_mode = False
-        self.statusBar().showMessage(message)
+        self.statusbar.showMessage(message)
         self.playbackSlider.setEnabled(False)
 
         self.image_sequence.clear_frames()
@@ -464,6 +462,10 @@ class WGO(QtWidgets.QMainWindow, Ui_mainWindow):
     def camera_mode_switch(self, x):
         if x:
             try:
+                message = 'Opening camera, GUI might freeze for a while...'
+                self.setWindowTitle(message)
+                self.statusbar.showMessage(message)
+                self.statusbar.repaint()  # force repaint to show this message
                 self.open_camera()
             except WGO.CameraNotFoundError as e:
                 logging.error(e)
