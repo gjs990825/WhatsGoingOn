@@ -11,7 +11,8 @@ Features
 
 Screenshot(s)
 -----
-Shot with modified C3D model. *Ignore that Realtime checkbox, not implemented yet.*
+Shot with modified C3D model.  
+*~~Ignore that Realtime checkbox, not implemented yet.~~ Realtime detection works fine now.*
 
 ![](docs/images/Snipaste_2023-05-29_11-05-43.png)
 
