@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'wgo_main.ui'
+# Form implementation generated from reading ui file 'wgo_main_window.ui'
 #
 # Created by: PyQt6 UI code generator 6.4.2
 #
@@ -247,6 +247,8 @@ class Ui_mainWindow(object):
         self.cameraModeRadioButton.toggled['bool'].connect(self.controlCenter.setDisabled) # type: ignore
         self.actionExit.triggered.connect(mainWindow.close) # type: ignore
         self.realTimeCheckBox.clicked['bool'].connect(self.goButton.setDisabled) # type: ignore
+        self.realTimeCheckBox.clicked['bool'].connect(self.camAutoCapture.setDisabled) # type: ignore
+        self.realTimeCheckBox.clicked['bool'].connect(self.camStart.setDisabled) # type: ignore
         QtCore.QMetaObject.connectSlotsByName(mainWindow)
 
     def retranslateUi(self, mainWindow):
